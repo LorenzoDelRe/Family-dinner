@@ -1,0 +1,164 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Users, Calendar, ChevronUp, Share2, Copy, Check } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+const DatePicker = () => {
+  const [votes, setVotes] = useState({
+    '16 novembre 12h30': { count: 0, voters: [] },
+    '17 novembre 12h30': { count: 0, voters: [] },
+    '23 novembre 12h30': { count: 0, voters: [] },
+    '24 novembre 12h30': { count: 0, voters: [] }
+  });
+  
+  const [name, setName] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
+
+  // Générer un ID unique pour la session familiale
+  const sessionId = window.location.hash.slice(1) || Math.random().toString(36).substring(2, 15);
+
+  useEffect(() => {
+    // Mettre à jour l'URL avec l'ID de session
+    if (!window.location.hash) {
+      window.location.hash = sessionId;
+    }
+
+    // Charger les votes existants depuis le localStorage
+    const savedVotes = localStorage.getItem(`family-dinner-${sessionId}`);
+    if (savedVotes) {
+      setVotes(JSON.parse(savedVotes));
+    }
+  }, []);
+
+  const saveVotes = (newVotes) => {
+    localStorage.setItem(`family-dinner-${sessionId}`, JSON.stringify(newVotes));
+    setVotes(newVotes);
+  };
+
+  const handleVote = (date) => {
+    if (!name.trim()) {
+      setShowAlert(true);
+      return;
+    }
+
+    // Vérifier si la personne a déjà voté
+    const hasVoted = Object.values(votes).some(({ voters }) => 
+      voters.includes(name)
+    );
+
+    if (!hasVoted) {
+      const newVotes = {
+        ...votes,
+        [date]: {
+          count: votes[date].count + 1,
+          voters: [...votes[date].voters, name]
+        }
+      };
+      saveVotes(newVotes);
+      setShowAlert(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie du lien');
+    }
+  };
+
+  const maxVotes = Math.max(...Object.values(votes).map(v => v.count));
+  const bestDates = Object.entries(votes).filter(([_, data]) => data.count === maxVotes);
+
+  return (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader className="text-center">
+        <CardTitle className="flex items-center justify-center gap-2">
+          <Calendar className="w-6 h-6" />
+          Repas de Famille
+          <Users className="w-6 h-6" />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="mb-6">
+            <Input
+              type="text"
+              placeholder="Votre nom"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mb-2"
+            />
+            {showAlert && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertDescription>
+                  Veuillez entrer votre nom avant de voter
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <Button
+            onClick={handleShare}
+            className="w-full mb-4 flex items-center justify-center gap-2"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4" />
+                Lien copié !
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                Partager le lien
+              </>
+            )}
+          </Button>
+
+          {Object.entries(votes).map(([date, data]) => (
+            <div key={date} className="space-y-2">
+              <Button
+                onClick={() => handleVote(date)}
+                disabled={Object.values(votes).some(({ voters }) => 
+                  voters.includes(name)
+                )}
+                className={`w-full relative ${data.count === maxVotes && data.count > 0 ? 'bg-green-600 hover:bg-green-700' : ''}`}
+              >
+                <span className="mr-2">{date}</span>
+                {data.count > 0 && <span className="ml-2">({data.count} votes)</span>}
+                {data.count === maxVotes && data.count > 0 && (
+                  <ChevronUp className="w-4 h-4 absolute right-2" />
+                )}
+              </Button>
+              {data.voters.length > 0 && (
+                <div className="text-sm text-gray-500 pl-2">
+                  Votants : {data.voters.join(', ')}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {Object.values(votes).some(v => v.count > 0) && (
+            <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+              <h3 className="font-semibold mb-2">Résultats actuels :</h3>
+              <p>
+                {bestDates.length === 1 
+                  ? `La date préférée est le ${bestDates[0][0]}`
+                  : `Les dates préférées sont : ${bestDates.map(([date]) => date).join(' et ')}`
+                }
+              </p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default DatePicker;
